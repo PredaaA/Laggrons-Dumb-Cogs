@@ -139,6 +139,7 @@ class Say(commands.Cog):
                 )
 
     @commands.command(name="say")
+    @commands.cooldown(1, 5, commands.BucketType.user)
     async def _say(
         self, ctx: commands.Context, channel: Optional[discord.TextChannel], *, text: str = ""
     ):
@@ -157,6 +158,7 @@ class Say(commands.Cog):
         await self.say(ctx, channel, text, files)
 
     @commands.command(name="sayembed", aliases=["sayem"])
+    @commands.cooldown(1, 5, commands.BucketType.user)
     async def _sayembed(self, ctx: commands.Context, *, json: str = None):
         """
         Make the bot say what you want in an embed in the current channel.
@@ -176,6 +178,7 @@ class Say(commands.Cog):
         await self.say(ctx, None, data, files)
 
     @commands.command(name="sayd", aliases=["sd"])
+    @commands.cooldown(1, 5, commands.BucketType.user)
     async def _saydelete(
         self, ctx: commands.Context, channel: Optional[discord.TextChannel], *, text: str = ""
     ):
@@ -200,6 +203,7 @@ class Say(commands.Cog):
         await self.say(ctx, channel, text, files)
 
     @commands.command(name="interact")
+    @commands.cooldown(1, 5, commands.BucketType.user)
     async def _interact(self, ctx: commands.Context, channel: discord.TextChannel = None):
         """Start receiving and sending messages as the bot through DM"""
 
