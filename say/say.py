@@ -4,9 +4,11 @@ import discord
 import asyncio
 import os
 import logging
+import json
 
-from typing import Optional
+from typing import Optional, Union
 
+from redbot.core.bot import Red
 from redbot.core import checks, commands
 from redbot.core.data_manager import cog_data_path
 from redbot.core.i18n import Translator, cog_i18n
@@ -16,18 +18,10 @@ log = logging.getLogger("laggron.say")
 log.setLevel(logging.DEBUG)
 
 _ = Translator("Say", __file__)
-BaseCog = getattr(commands, "Cog", object)
-
-# Red 3.0 backwards compatibility, thanks Sinbad
-listener = getattr(commands.Cog, "listener", None)
-if listener is None:
-
-    def listener(name=None):
-        return lambda x: x
 
 
 @cog_i18n(_)
-class Say(BaseCog):
+class Say(commands.Cog):
     """
     Speak as if you were the bot
 
@@ -35,7 +29,7 @@ class Say(BaseCog):
     Full documentation and FAQ: http://laggrons-dumb-cogs.readthedocs.io/say.html
     """
 
-    def __init__(self, bot):
+    def __init__(self, bot: Red):
         self.bot = bot
         self.interaction = []
         self._init_logger()
@@ -70,7 +64,11 @@ class Say(BaseCog):
         self.stdout_handler = stdout_handler
 
     async def say(
-        self, ctx: commands.Context, channel: Optional[discord.TextChannel], text: str, files: list
+        self,
+        ctx: commands.Context,
+        channel: Optional[discord.TextChannel],
+        text: Union[str, dict],
+        files: list,
     ):
         if not channel:
             channel = ctx.channel
@@ -90,7 +88,11 @@ class Say(BaseCog):
 
         # sending the message
         try:
-            await channel.send(text, files=files)
+            if isinstance(text, dict):
+                embed = discord.Embed.from_dict(text)
+                await channel.send(embed=embed)
+            else:
+                await channel.send(text, files=files)
         except discord.errors.HTTPException as e:
             if not ctx.guild.me.permissions_in(channel).send_messages:
                 author = ctx.author
@@ -121,9 +123,17 @@ class Say(BaseCog):
                     exc_info=e,
                 )
 
+    async def _str_to_json(self, payload: str):
+        try:
+            return json.loads(payload)
+        except json.JSONDecodeError:
+            return None
+
     @commands.command(name="say")
     @checks.guildowner()
-    async def _say(self, ctx, channel: Optional[discord.TextChannel], *, text: str = ""):
+    async def _say(
+        self, ctx: commands.Context, channel: Optional[discord.TextChannel], *, text: str = ""
+    ):
         """
         Make the bot say what you want in the desired channel.
 
@@ -131,16 +141,34 @@ class Say(BaseCog):
         You can attach some files to upload them to Discord.
 
         Example usage :
-        - `!say #general hello there`
-        - `!say owo I have a file` (a file is attached to the command message)
+        - `[p]say #general hello there`
+        - `[p]say owo I have a file` (a file is attached to the command message)
         """
 
         files = await Tunnel.files_from_attatch(ctx.message)
         await self.say(ctx, channel, text, files)
 
+    @commands.command(name="sayembed", aliases=["sayem"])
+    async def _sayembed(self, ctx: commands.Context, *, json: str = ""):
+        """
+        Make the bot say what you want in an embed in the current channel.
+
+        You need to send a valid JSON, that you can easily made from here: https://embedbuilder.nadekobot.me/
+        Example usage:
+        - `[p]sayembed {"title": "Hey a blue embeded message!", "color": 431075}`
+        """
+
+        files = await Tunnel.files_from_attatch(ctx.message)
+        data = await self._str_to_json(json)
+        if not data:
+            return await ctx.send(_("This is not a valid JSON."))
+        await self.say(ctx, None, data, files)
+
     @commands.command(name="sayd", aliases=["sd"])
     @checks.guildowner()
-    async def _saydelete(self, ctx, channel: Optional[discord.TextChannel], *, text: str = ""):
+    async def _saydelete(
+        self, ctx: commands.Context, channel: Optional[discord.TextChannel], *, text: str = ""
+    ):
         """
         Same as say command, except it deletes your message.
 
@@ -163,7 +191,7 @@ class Say(BaseCog):
 
     @commands.command(name="interact")
     @checks.guildowner()
-    async def _interact(self, ctx, channel: discord.TextChannel = None):
+    async def _interact(self, ctx: commands.Context, channel: discord.TextChannel = None):
         """Start receiving and sending messages as the bot through DM"""
 
         u = ctx.author
@@ -234,7 +262,7 @@ class Say(BaseCog):
 
     @commands.command(hidden=True)
     @checks.is_owner()
-    async def sayinfo(self, ctx):
+    async def sayinfo(self, ctx: commands.Context):
         """
         Get informations about the cog.
         """
@@ -250,15 +278,17 @@ class Say(BaseCog):
             ).format(self)
         )
 
-    @listener()
-    async def on_reaction_add(self, reaction, user):
+    @commands.Cog.listener()
+    async def on_reaction_add(
+        self, reaction: discord.Reaction, user: Union[discord.Member, discord.User]
+    ):
         if user in self.interaction:
             channel = reaction.message.channel
             if isinstance(channel, discord.DMChannel):
                 await self.stop_interaction(user)
 
-    @listener()
-    async def on_command_error(self, ctx, error):
+    @commands.Cog.listener()
+    async def on_command_error(self, ctx: commands.Context, error: commands.CommandError):
         if not isinstance(error, commands.CommandInvokeError):
             return
         if not ctx.command.cog_name == self.__class__.__name__:
@@ -270,12 +300,9 @@ class Say(BaseCog):
         )
         log.addHandler(self.stdout_handler)  # re-enable console output for warnings
 
-    async def stop_interaction(self, user):
+    async def stop_interaction(self, user: Union[discord.Member, discord.User]):
         self.interaction.remove(user)
         await user.send(_("Session closed"))
-
-    def __unload(self):
-        self.cog_unload()
 
     def cog_unload(self):
         log.debug("Unloading cog...")
