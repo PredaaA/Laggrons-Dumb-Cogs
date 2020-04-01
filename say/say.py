@@ -149,6 +149,7 @@ class Say(commands.Cog):
         await self.say(ctx, channel, text, files)
 
     @commands.command(name="sayembed", aliases=["sayem"])
+    @checks.guildowner()
     async def _sayembed(self, ctx: commands.Context, *, json: str = ""):
         """
         Make the bot say what you want in an embed in the current channel.
