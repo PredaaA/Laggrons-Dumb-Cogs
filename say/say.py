@@ -4,15 +4,18 @@ import discord
 import asyncio
 import os
 import logging
-import json
 
+from datetime import datetime
 from typing import Optional, Union
 
 from redbot.core.bot import Red
 from redbot.core import checks, commands
 from redbot.core.data_manager import cog_data_path
+from redbot.core.utils.common_filters import filter_mass_mentions
 from redbot.core.i18n import Translator, cog_i18n
 from redbot.core.utils.tunnel import Tunnel
+
+from .utils import _check_owner, _str_to_json
 
 log = logging.getLogger("laggron.say")
 log.setLevel(logging.DEBUG)
@@ -34,8 +37,8 @@ class Say(commands.Cog):
         self.interaction = []
         self._init_logger()
 
-    __author__ = ["retke (El Laggron)"]
-    __version__ = "1.4.12"
+    __author__ = ["retke (El Laggron)", "Predä"]
+    __version__ = "1.5.0"
 
     def _init_logger(self):
         log_format = logging.Formatter(
@@ -67,12 +70,12 @@ class Say(commands.Cog):
         self,
         ctx: commands.Context,
         channel: Optional[discord.TextChannel],
-        text: Union[str, dict],
+        payload: Union[str, dict],
         files: list,
     ):
         if not channel:
             channel = ctx.channel
-        if not text and not files:
+        if not payload and not files:
             await ctx.send_help()
             return
 
@@ -88,11 +91,22 @@ class Say(commands.Cog):
 
         # sending the message
         try:
-            if isinstance(text, dict):
-                embed = discord.Embed.from_dict(text)
-                await channel.send(embed=embed)
+            if isinstance(payload, dict):
+                if not _check_owner(ctx) and payload.get("content"):
+                    payload["content"] = filter_mass_mentions(payload["content"])
+                if payload.get("embed"):
+                    if payload["embed"].get("timestamp"):
+                        payload["embed"]["timestamp"] = None  # TODO: Handle this.
+                    payload["embed"] = discord.Embed.from_dict(payload["embed"])
+                try:
+                    await channel.send(**payload)
+                except TypeError:
+                    await ctx.send(_("Something is wrong in your JSON input."))
             else:
-                await channel.send(text, files=files)
+                if _check_owner(ctx):
+                    await channel.send(payload, files=files)
+                else:
+                    await channel.send(filter_mass_mentions(payload), files=files)
         except discord.errors.HTTPException as e:
             if not ctx.guild.me.permissions_in(channel).send_messages:
                 author = ctx.author
@@ -117,20 +131,15 @@ class Say(commands.Cog):
                         _("I am not allowed to upload files in ") + channel.mention,
                         delete_after=15,
                     )
+            elif e.code == 50035:
+                await ctx.send(e.text)
             else:
                 log.error(
                     f"Unknown permissions error when sending a message.\n{error_message}",
                     exc_info=e,
                 )
 
-    async def _str_to_json(self, payload: str):
-        try:
-            return json.loads(payload)
-        except json.JSONDecodeError:
-            return None
-
     @commands.command(name="say")
-    @checks.guildowner()
     async def _say(
         self, ctx: commands.Context, channel: Optional[discord.TextChannel], *, text: str = ""
     ):
@@ -149,24 +158,25 @@ class Say(commands.Cog):
         await self.say(ctx, channel, text, files)
 
     @commands.command(name="sayembed", aliases=["sayem"])
-    @checks.guildowner()
-    async def _sayembed(self, ctx: commands.Context, *, json: str = ""):
+    async def _sayembed(self, ctx: commands.Context, *, json: str = None):
         """
         Make the bot say what you want in an embed in the current channel.
 
-        You need to send a valid JSON, that you can easily made from here: https://embedbuilder.nadekobot.me/
+        You need to send a valid JSON, that you can made from here: https://leovoel.github.io/embed-visualizer/
         Example usage:
-        - `[p]sayembed {"title": "Hey a blue embeded message!", "color": 431075}`
+        - `[p]sayembed {"embed": {"title": "Hey a blue embeded message!", "color": 431075}}`
+        - `[p]sayembed {"content": "A message above this embed!", "embed": {"title": "And a blue embeded message!", "color": 431075}}`
         """
 
+        if not json:
+            return await ctx.send_help()
         files = await Tunnel.files_from_attatch(ctx.message)
-        data = await self._str_to_json(json)
+        data = await _str_to_json(json)
         if not data:
             return await ctx.send(_("This is not a valid JSON."))
         await self.say(ctx, None, data, files)
 
     @commands.command(name="sayd", aliases=["sd"])
-    @checks.guildowner()
     async def _saydelete(
         self, ctx: commands.Context, channel: Optional[discord.TextChannel], *, text: str = ""
     ):
@@ -191,7 +201,6 @@ class Say(commands.Cog):
         await self.say(ctx, channel, text, files)
 
     @commands.command(name="interact")
-    @checks.guildowner()
     async def _interact(self, ctx: commands.Context, channel: discord.TextChannel = None):
         """Start receiving and sending messages as the bot through DM"""
 
