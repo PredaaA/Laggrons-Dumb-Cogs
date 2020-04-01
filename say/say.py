@@ -5,7 +5,6 @@ import asyncio
 import os
 import logging
 
-from datetime import datetime
 from typing import Optional, Union
 
 from redbot.core.bot import Red
