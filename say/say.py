@@ -72,6 +72,8 @@ class Say(commands.Cog):
         payload: Union[str, dict],
         files: list,
     ):
+        if not _check_owner(ctx):
+            channel = None
         if not channel:
             channel = ctx.channel
         if not payload and not files:
@@ -144,9 +146,9 @@ class Say(commands.Cog):
         self, ctx: commands.Context, channel: Optional[discord.TextChannel], *, text: str = ""
     ):
         """
-        Make the bot say what you want in the desired channel.
+        Make the bot say what you want.
 
-        If no channel is specified, the message will be send in the current channel.
+        Only server owner can choose a channel. Otherwise it is sent in the current channel.
         You can attach some files to upload them to Discord.
 
         Example usage :
@@ -178,7 +180,7 @@ class Say(commands.Cog):
         await self.say(ctx, None, data, files)
 
     @commands.command(name="sayd", aliases=["sd"])
-    @commands.cooldown(1, 5, commands.BucketType.user)
+    @checks.guildowner()
     async def _saydelete(
         self, ctx: commands.Context, channel: Optional[discord.TextChannel], *, text: str = ""
     ):
@@ -203,7 +205,7 @@ class Say(commands.Cog):
         await self.say(ctx, channel, text, files)
 
     @commands.command(name="interact")
-    @commands.cooldown(1, 5, commands.BucketType.user)
+    @checks.guildowner()
     async def _interact(self, ctx: commands.Context, channel: discord.TextChannel = None):
         """Start receiving and sending messages as the bot through DM"""
 
