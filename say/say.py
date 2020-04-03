@@ -72,8 +72,6 @@ class Say(commands.Cog):
         payload: Union[str, dict],
         files: list,
     ):
-        if not _check_owner(ctx):
-            channel = None
         if not channel:
             channel = ctx.channel
         if not payload and not files:
@@ -140,6 +138,7 @@ class Say(commands.Cog):
                     exc_info=e,
                 )
 
+    @checks.mod()
     @commands.command(name="say")
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def _say(
@@ -159,6 +158,7 @@ class Say(commands.Cog):
         files = await Tunnel.files_from_attatch(ctx.message)
         await self.say(ctx, channel, text, files)
 
+    @checks.mod()
     @commands.command(name="sayembed", aliases=["sayem"])
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def _sayembed(self, ctx: commands.Context, *, json: str = None):
@@ -179,8 +179,8 @@ class Say(commands.Cog):
             return await ctx.send(_("This is not a valid JSON."))
         await self.say(ctx, None, data, files)
 
+    @checks.mod()
     @commands.command(name="sayd", aliases=["sd"])
-    @checks.guildowner()
     async def _saydelete(
         self, ctx: commands.Context, channel: Optional[discord.TextChannel], *, text: str = ""
     ):
