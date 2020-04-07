@@ -99,6 +99,7 @@ class Say(commands.Cog):
                     payload["embed"] = discord.Embed.from_dict(payload["embed"])
                 try:
                     await channel.send(**payload)
+                    await ctx.tick()
                 except TypeError:
                     await ctx.send(_("Something is wrong in your JSON input."))
             else:
@@ -106,6 +107,7 @@ class Say(commands.Cog):
                     await channel.send(payload, files=files)
                 else:
                     await channel.send(filter_mass_mentions(payload), files=files)
+                await ctx.tick()
         except discord.errors.HTTPException as e:
             if not ctx.guild.me.permissions_in(channel).send_messages:
                 author = ctx.author
