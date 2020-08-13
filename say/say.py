@@ -39,6 +39,10 @@ class Say(commands.Cog):
     __author__ = ["retke (El Laggron)", "Predä"]
     __version__ = "1.5.0"
 
+    async def red_delete_data_for_user(self, **kwargs):
+        """ Nothing to delete """
+        return
+
     def _init_logger(self):
         log_format = logging.Formatter(
             f"%(asctime)s %(levelname)s {self.__class__.__name__}: %(message)s",
